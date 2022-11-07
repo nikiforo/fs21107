@@ -9,30 +9,31 @@ import fs2.Stream
 
 import scala.concurrent.duration._
 
-object FakeDP {
+object FS2Example extends IOApp.Simple {
 
   case class MaybeInt(int: Option[Int])
 
-  val empty: MaybeInt = MaybeInt(none)
+  private val empty: MaybeInt = MaybeInt(none)
 
-  val big = 2
+  private val big = 2
 
-  val small = 1
+  private val small = 1
 
-  def make =
-    transferTracks
-      .handleErrorWith(ex => Stream.exec(IO.println(s"Caught ${ex.getMessage}")))
-      .groupWithin(512, 1.second)
-      .compile
-      .drain
+  private val track = empty.copy(int = big.some)
 
-  def transferTracks: Stream[IO, Int] = {
-    val track = empty.copy(int = big.some)
-    Stream(track, track)
-      .repeat
-      .through(assemble)
-      .evalTap(checkDateValidity)
-      .parEvalMap(10)(_ => IO.pure(1))
+  def run: IO[Unit] = {
+    val singleRun =
+      Stream(track, track)
+        .repeat
+        .through(assemble)
+        .evalTap(checkDateValidity)
+        .parEvalMap(10)(_ => IO.unit)
+        .handleErrorWith(ex => Stream.exec(IO.println(s"Caught ${ex.getMessage}")))
+        .groupWithin(512, 1.second)
+        .compile
+        .drain
+
+    Stream.repeatEval(singleRun).compile.drain.guaranteeCase(IO.println)
   }
 
   private def assemble(tracks: Stream[IO, MaybeInt]): Stream[IO, MaybeInt] =
@@ -42,10 +43,8 @@ object FakeDP {
       .chunks
       .flatMap(chunk => Stream.fromOption(chunk.last))
 
-  private def checkDateValidity(updateAction: MaybeInt): IO[Unit] =
-    MonadThrow[IO].raiseError(new IllegalArgumentException("TheException")).whenA(updateAction.int.exists(_ > small))
-}
-
-object FS2Example extends IOApp.Simple {
-  def run: IO[Unit] = Stream.repeatEval(FakeDP.make).compile.drain
+  private def checkDateValidity(updateAction: MaybeInt): IO[Unit] = {
+    val action = MonadThrow[IO].raiseError(new IllegalArgumentException("TheException"))
+    action.whenA(updateAction.int.exists(_ > small))
+  }
 }
