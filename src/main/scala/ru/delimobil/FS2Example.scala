@@ -11,9 +11,9 @@ import scala.concurrent.duration._
 
 object FakeDP {
 
-  case class MaybeZDT(zdt: Option[Int])
+  case class MaybeInt(int: Option[Int])
 
-  val empty: MaybeZDT = MaybeZDT(none)
+  val empty: MaybeInt = MaybeInt(none)
 
   val big = 2
 
@@ -27,7 +27,7 @@ object FakeDP {
       .drain
 
   def transferTracks: Stream[IO, Int] = {
-    val track = empty.copy(zdt = big.some)
+    val track = empty.copy(int = big.some)
     Stream(track, track)
       .repeat
       .through(assemble)
@@ -35,15 +35,15 @@ object FakeDP {
       .parEvalMap(10)(_ => IO.pure(1))
   }
 
-  private def assemble(tracks: Stream[IO, MaybeZDT]): Stream[IO, MaybeZDT] =
+  private def assemble(tracks: Stream[IO, MaybeInt]): Stream[IO, MaybeInt] =
     (Stream(empty) ++ tracks)
       .sliding(2)
-      .map { chunk => MaybeZDT(chunk.head.get.zdt) }
+      .map { chunk => MaybeInt(chunk.head.get.int) }
       .chunks
-      .flatMap(chunk => Stream.fromOption(chunk.last).map(action => MaybeZDT(action.zdt)))
+      .flatMap(chunk => Stream.fromOption(chunk.last))
 
-  private def checkDateValidity(updateAction: MaybeZDT): IO[Unit] =
-    MonadThrow[IO].raiseError(new IllegalArgumentException("TheException")).whenA(updateAction.zdt.exists(_ > small))
+  private def checkDateValidity(updateAction: MaybeInt): IO[Unit] =
+    MonadThrow[IO].raiseError(new IllegalArgumentException("TheException")).whenA(updateAction.int.exists(_ > small))
 }
 
 object FS2Example extends IOApp.Simple {
