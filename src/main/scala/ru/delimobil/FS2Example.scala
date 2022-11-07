@@ -20,7 +20,8 @@ object FakeDP {
   val small = 1
 
   def make =
-    transferTracks.handleErrorWith(ex => Stream.exec(IO.println(s"Caught ${ex.getMessage}")))
+    transferTracks
+      .handleErrorWith(ex => Stream.exec(IO.println(s"Caught ${ex.getMessage}")))
       .groupWithin(512, 1.second)
       .compile
       .drain
